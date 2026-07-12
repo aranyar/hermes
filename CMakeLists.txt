@@ -727,7 +727,11 @@ include_directories(BEFORE
   ${CMAKE_CURRENT_SOURCE_DIR}/external
   )
 
-if(HERMES_IS_ANDROID)
+if(HERMES_IS_ANDROID AND HERMES_ENABLE_INTL)
+  # The Intl / Java-platform Unicode sources need fbjni. We skip fbjni
+  # entirely on Android when Intl is disabled; Unicode is configured via
+  # HERMES_UNICODE_LITE. See lib/Platform/Unicode/CMakeLists.txt and
+  # lib/Platform/Intl/CMakeLists.txt for the corresponding source-file gates.
   find_package(fbjni REQUIRED CONFIG)
 endif()
 
@@ -747,7 +751,13 @@ add_subdirectory(lib)
 add_subdirectory(public)
 add_subdirectory(external)
 add_subdirectory(API)
-add_subdirectory(android/intltest/java/com/facebook/hermes/test)
+# The intltest target is for React Native's Android integration test and
+# requires fbjni, which we don't ship. Skipping it here keeps the Android
+# build self-contained; the released libhermesvm still ships Intl support
+# (used by iOS via PlatformIntlApple.mm), just not the Android-fbjni path.
+if(NOT (HERMES_IS_ANDROID AND NOT TARGET fbjni::fbjni))
+  add_subdirectory(android/intltest/java/com/facebook/hermes/test)
+endif()
 
 if(HERMES_ENABLE_TOOLS)
   add_subdirectory(tools)
