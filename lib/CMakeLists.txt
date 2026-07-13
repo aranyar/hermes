@@ -120,35 +120,37 @@ target_link_libraries(hermescompiler PUBLIC
   zip_obj
   )
 
-add_library(hermesvm_a STATIC)
-target_link_libraries(hermesvm_a PUBLIC
-  LLVHSupport_obj
-  ${BOOST_CONTEXT_LIB}
-  dtoa_obj
-  hermesapi_obj
-  hermesADT_obj
-  hermesAST2JS_obj
-  hermesAST_obj
-  hermesBackend_obj
-  hermesFrontEndDefs_obj
-  hermesFrontend_obj
-  hermesHBCBackend_obj
-  hermesInst_obj
-  hermesInstrumentation_obj
-  hermesInternalJavaScript_obj
-  hermesOptimizer_obj
-  hermesParser_obj
-  hermesPlatformUnicode_obj
-  hermesPlatform_obj
-  hermesPublic_obj
-  hermesRegex_obj
-  hermesSema_obj
-  hermesSHBackend_obj
-  hermesSourceMap_obj
-  hermesSupport_obj
-  hermesVMRuntime_obj
-  zip_obj
+if(NOT HERMESVM_LEAN)
+  add_library(hermesvm_a STATIC)
+  target_link_libraries(hermesvm_a PUBLIC
+    LLVHSupport_obj
+    ${BOOST_CONTEXT_LIB}
+    dtoa_obj
+    hermesapi_obj
+    hermesADT_obj
+    hermesAST2JS_obj
+    hermesAST_obj
+    hermesBackend_obj
+    hermesFrontEndDefs_obj
+    hermesFrontend_obj
+    hermesHBCBackend_obj
+    hermesInst_obj
+    hermesInstrumentation_obj
+    hermesInternalJavaScript_obj
+    hermesOptimizer_obj
+    hermesParser_obj
+    hermesPlatformUnicode_obj
+    hermesPlatform_obj
+    hermesPublic_obj
+    hermesRegex_obj
+    hermesSema_obj
+    hermesSHBackend_obj
+    hermesSourceMap_obj
+    hermesSupport_obj
+    hermesVMRuntime_obj
+    zip_obj
   )
+endif()
 
 add_library(hermesvmlean_a STATIC)
 target_link_libraries(hermesvmlean_a PUBLIC
@@ -173,7 +175,10 @@ target_link_libraries(hermesvmlean_a PUBLIC
   )
 
 # CMake requires at least one file for the target, so create an empty file.
-add_library(hermesvm SHARED dummy.cpp)
+# When HERMESVM_LEAN is ON, only build hermesvmlean (skip the full hermesvm).
+if(NOT HERMESVM_LEAN)
+  add_library(hermesvm SHARED dummy.cpp)
+endif()
 add_library(hermesvmlean SHARED dummy.cpp)
 
 if(APPLE AND HERMES_BUILD_APPLE_FRAMEWORK)
@@ -222,14 +227,18 @@ endif()
 # That is, we do not want libraries that depend on hermesvm to link in an extra
 # copy of any static libraries linked into it.
 if(APPLE)
-  target_link_libraries(hermesvm PRIVATE -force_load hermesvm_a)
+  if(NOT HERMESVM_LEAN)
+    target_link_libraries(hermesvm PRIVATE -force_load hermesvm_a)
+  endif()
   target_link_libraries(hermesvmlean PRIVATE -force_load hermesvmlean_a)
 else()
-  target_link_libraries(hermesvm PRIVATE
-    -Wl,--whole-archive
-    hermesvm_a
-    -Wl,--no-whole-archive
-  )
+  if(NOT HERMESVM_LEAN)
+    target_link_libraries(hermesvm PRIVATE
+      -Wl,--whole-archive
+      hermesvm_a
+      -Wl,--no-whole-archive
+    )
+  endif()
   target_link_libraries(hermesvmlean PRIVATE
     -Wl,--whole-archive
     hermesvmlean_a
@@ -240,24 +249,30 @@ endif()
 # Since we use private dependencies above, we need to enumerate all the headers
 # that should be available to consumers of hermesvm. Note that we only expose
 # the headers which produce visible symbols.
-target_include_directories(hermesvm PUBLIC ${PROJECT_SOURCE_DIR}/public ${HERMES_COMMON_DIR}/public ${PROJECT_SOURCE_DIR}/API ${HERMES_JSI_DIR})
+if(NOT HERMESVM_LEAN)
+  target_include_directories(hermesvm PUBLIC ${PROJECT_SOURCE_DIR}/public ${HERMES_COMMON_DIR}/public ${PROJECT_SOURCE_DIR}/API ${HERMES_JSI_DIR})
+endif()
 target_include_directories(hermesvmlean PUBLIC ${PROJECT_SOURCE_DIR}/public ${HERMES_COMMON_DIR}/public ${PROJECT_SOURCE_DIR}/API ${HERMES_JSI_DIR})
 
 # Private dependencies also mean that JSI will not get propagated to libraries
 # that depend on hermesvm. If JSI is built as a shared library, ensure it is
 # added to the link line for anything that depends on hermesvm. If it's a static
 # library, ensure it isn't since that would link in JSI twice.
-if (HERMES_BUILD_SHARED_JSI)
+if (HERMES_BUILD_SHARED_JSI AND NOT HERMESVM_LEAN)
   target_link_libraries(hermesvm PUBLIC jsi)
 endif()
 
 # Apply additional linker flags.
-target_link_options(hermesvm PRIVATE ${HERMES_EXTRA_LINKER_FLAGS})
+if(NOT HERMESVM_LEAN)
+  target_link_options(hermesvm PRIVATE ${HERMES_EXTRA_LINKER_FLAGS})
+endif()
 target_link_options(hermesvmlean PRIVATE ${HERMES_EXTRA_LINKER_FLAGS})
 
 if(HERMES_ENABLE_INTL)
   set(INTL_OBJ_LIBS hermesPlatformIntl_obj hermesBCP47Parser_obj)
-  target_link_libraries(hermesvm_a PUBLIC ${INTL_OBJ_LIBS})
+  if(NOT HERMESVM_LEAN)
+    target_link_libraries(hermesvm_a PUBLIC ${INTL_OBJ_LIBS})
+  endif()
   target_link_libraries(hermesvmlean_a PUBLIC ${INTL_OBJ_LIBS})
 endif()
 
