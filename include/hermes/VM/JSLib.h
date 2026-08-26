@@ -34,6 +34,10 @@ class JSLibFlags {
   /// empty.
   bool enableHermesInternal = true;
   bool enableHermesInternalTestMethods = false;
+
+  /// If true, the global %FlowJSON object (incremental JSON parser) is
+  /// registered.
+  bool enableFlowJsonParser = false;
 };
 
 void initGlobalObject(Runtime &runtime, const JSLibFlags &jsLibFlags);

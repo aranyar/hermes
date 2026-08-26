@@ -716,6 +716,17 @@ void initGlobalObject(Runtime &runtime, const JSLibFlags &jsLibFlags) {
       constantDPF,
       lv.tempHandle));
 
+  // Define the global %FlowJSON object (incremental JSON parser).
+  if (jsLibFlags.enableFlowJsonParser) {
+    lv.tempHandle.castAndSetHermesValue<JSObject>(
+        createFlowJSONObject(runtime));
+    auto flowJsonSym = runtime.ignoreAllocationFailure(
+        runtime.getIdentifierTable().getSymbolHandle(
+            runtime, createASCIIRef("FlowJSON")));
+    runtime.ignoreAllocationFailure(JSObject::defineOwnProperty(
+        runtime.getGlobal(), runtime, *flowJsonSym, constantDPF, lv.tempHandle));
+  }
+
 #ifdef HERMES_ENABLE_DEBUGGER
 
   // Define the global %DebuggerInternal object.
