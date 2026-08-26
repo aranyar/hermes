@@ -239,6 +239,10 @@ HermesValue createHermesInternalObject(
     Runtime &runtime,
     const JSLibFlags &jsLibFlags);
 
+/// Create the global %FlowJSON object (incremental JSON parser; see
+/// FlowJSON.cpp). Registered only when JSLibFlags::enableFlowJsonParser.
+HermesValue createFlowJSONObject(Runtime &runtime);
+
 #ifdef HERMES_ENABLE_DEBUGGER
 
 /// Create and initialize the global %DebuggerInternal object, populating its

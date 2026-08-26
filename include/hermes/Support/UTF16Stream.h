@@ -27,7 +27,8 @@ class UTF16Stream {
         end_(str.end()),
         utf8Begin_(nullptr),
         utf8End_(nullptr),
-        beginCapture_(nullptr) {}
+        beginCapture_(nullptr),
+        begin16_(str.begin()) {}
 
   /// A stream that converts \p utf8 to UTF16. If the input is not valid UTF8,
   /// then the stream will end at the first malformed character.
@@ -37,6 +38,9 @@ class UTF16Stream {
   UTF16Stream(UTF16Stream &&rhs) = default;
   UTF16Stream(UTF16Stream &rhs) = delete;
   UTF16Stream &operator=(UTF16Stream &rhs) = delete;
+  /// Move assignment, needed to re-seat a stream on a (possibly grown) input
+  /// buffer between incremental parsing rounds.
+  UTF16Stream &operator=(UTF16Stream &&rhs) = default;
 
   /// Returns whether operator*/operator++ may be called.
   /// MUST be the first method called in any stream position.
@@ -73,6 +77,14 @@ class UTF16Stream {
   /// This is a good method to call to ensure there are no outstanding captures.
   void cancelCapture();
 
+  /// Returns the current position as a char16 offset from the beginning of
+  /// the input. Only valid for streams created from UTF-16 input (used by
+  /// incremental parsers to save/restore positions).
+  uint32_t tell() const {
+    assert(begin16_ && "tell() requires UTF-16 input");
+    return static_cast<uint32_t>(cur_ - begin16_);
+  }
+
  private:
   /// Tries to convert more data. Returns true if more data was converted.
   bool refill();
@@ -97,6 +109,10 @@ class UTF16Stream {
 
   /// The conversion buffer (if UTF8 input).
   std::vector<char16_t> storage_;
+
+  /// Beginning of the input; set only for UTF-16 input (nullptr for UTF-8
+  /// input, where positions cannot be expressed in char16 units).
+  const char16_t *begin16_{nullptr};
 };
 
 } // namespace hermes

@@ -107,6 +107,8 @@ set(source_files
   JSLib/JSON.cpp
   JSLib/RuntimeJSONUtils.cpp
   JSLib/JSONLexer.cpp
+  JSLib/FlowJSONParser.cpp
+  JSLib/FlowJSON.cpp
   JSLib/Object.cpp
   JSLib/Proxy.cpp
   JSLib/Reflect.cpp

@@ -442,6 +442,7 @@ Runtime::Runtime(
   jsLibFlags.enableHermesInternal = runtimeConfig.getEnableHermesInternal();
   jsLibFlags.enableHermesInternalTestMethods =
       runtimeConfig.getEnableHermesInternalTestMethods();
+  jsLibFlags.enableFlowJsonParser = runtimeConfig.getEnableFlowJsonParser();
   initGlobalObject(*this, jsLibFlags);
 
   // Once the global object has been initialized, populate native builtins to

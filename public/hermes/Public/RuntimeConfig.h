@@ -103,6 +103,9 @@ class PinnedHermesValue;
   /* Enable methods exposed to JS for testing */                       \
   F(constexpr, bool, EnableHermesInternalTestMethods, false)           \
                                                                        \
+  /* Enable the global %FlowJSON object (incremental JSON parser) */   \
+  F(constexpr, bool, EnableFlowJsonParser, false)                      \
+                                                                       \
   /* Choose lazy/eager compilation mode. */                            \
   F(constexpr,                                                         \
     CompilationMode,                                                   \
