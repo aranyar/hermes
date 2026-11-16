@@ -265,7 +265,15 @@ endif()
 # having its dependencies added to the link line of things that depend on it.
 # That is, we do not want libraries that depend on hermesvm to link in an extra
 # copy of any static libraries linked into it.
-if(APPLE)
+if(MSVC)
+  # GNU --whole-archive / Apple -force_load are not accepted by link.exe.
+  if(NOT HERMESVM_LEAN)
+    add_dependencies(hermesvm hermesvm_a)
+    target_link_options(hermesvm PRIVATE "/WHOLEARCHIVE:$<TARGET_FILE:hermesvm_a>")
+  endif()
+  add_dependencies(hermesvmlean hermesvmlean_a)
+  target_link_options(hermesvmlean PRIVATE "/WHOLEARCHIVE:$<TARGET_FILE:hermesvmlean_a>")
+elseif(APPLE)
   if(NOT HERMESVM_LEAN)
     target_link_libraries(hermesvm PRIVATE -force_load hermesvm_a)
   endif()

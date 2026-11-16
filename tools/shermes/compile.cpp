@@ -17,7 +17,11 @@
 #include "llvh/Support/Program.h"
 #include "llvh/Support/Signals.h"
 
+#if defined(_WIN32)
+#include <windows.h>
+#else
 #include <dlfcn.h>
+#endif
 
 #define DEBUG_TYPE "shermesc"
 
@@ -479,6 +483,19 @@ bool execute(
   }
 
   // Open the produced shared library and invoke main with args.
+#if defined(_WIN32)
+  HMODULE handle = LoadLibraryA(tmpPath.c_str());
+  if (!handle) {
+    llvh::errs() << "LoadLibrary() error, path: " << tmpPath
+                 << ", error: " << GetLastError() << "\n";
+    return false;
+  }
+  auto *main = (int (*)(int, char **))GetProcAddress(handle, "main");
+  if (!main) {
+    llvh::errs() << "GetProcAddress(main) error: " << GetLastError() << "\n";
+    return false;
+  }
+#else
   void *handle = dlopen(tmpPath.c_str(), RTLD_LAZY);
   if (!handle) {
     llvh::errs() << "dlopen() error, path: " << tmpPath
@@ -490,6 +507,7 @@ bool execute(
     llvh::errs() << "dlsym(main) error: " << dlerror() << "\n";
     return false;
   }
+#endif
   // The main function takes a non-const char**, but we know it doesn't actually
   // modify it, so it is harmless to cast.
   return !main(args.size(), const_cast<char **>(args.data()));
