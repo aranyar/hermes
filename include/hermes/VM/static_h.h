@@ -1000,11 +1000,11 @@ static inline int32_t _sh_to_int32_double(double d) {
 
   if (HERMES_TRYFAST_F64_TO_64_IS_FAST) {
     int64_t fast;
-    if (__builtin_expect(sh_tryfast_f64_to_i64(d, fast), 1))
+    if (SH_LIKELY(sh_tryfast_f64_to_i64(d, fast)))
       return (int32_t)fast;
   } else {
     int32_t fast;
-    if (__builtin_expect(sh_tryfast_f64_to_i32(d, fast), 1))
+    if (SH_LIKELY(sh_tryfast_f64_to_i32(d, fast)))
       return fast;
   }
 
