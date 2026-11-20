@@ -438,6 +438,15 @@ std::pair<const void *, size_t> thread_stack_bounds_impl() {
 
   size_t sz = (const char *)stackHigh - (const char *)stackLow;
 
+  // HotSpot commits the whole thread stack, so AllocationBase is already
+  // committed. The logic below assumes a reserved region and would subtract
+  // the next mapping, reporting a stack of only a few dozen kilobytes.
+  MEMORY_BASIC_INFORMATION baseInfo;
+  VirtualQuery(stackLow, &baseInfo, sizeof(baseInfo));
+  if (baseInfo.State != MEM_RESERVE) {
+    return {stackHigh, sz};
+  }
+
   const size_t pageSz = page_size_real();
 
   // If we fail to determine the actual size of the guard region, fall back to
