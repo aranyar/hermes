@@ -259,20 +259,29 @@ if(APPLE AND HERMES_BUILD_APPLE_FRAMEWORK)
 endif()
 
 # Force the entire hermesvm_a library to be used by hermesvm. There is
-# no cross platform way to do this (force_load is for macOS). Once we upgrade
-# CMake 3.24, we can use the LINK_LIBRARY generator expression to do this.
+# no cross platform way to do this (force_load is for macOS).
 # We use private dependencies for the shared library target, in order to avoid
 # having its dependencies added to the link line of things that depend on it.
 # That is, we do not want libraries that depend on hermesvm to link in an extra
 # copy of any static libraries linked into it.
 if(MSVC)
-  # GNU --whole-archive / Apple -force_load are not accepted by link.exe.
-  if(NOT HERMESVM_LEAN)
-    add_dependencies(hermesvm hermesvm_a)
-    target_link_options(hermesvm PRIVATE "/WHOLEARCHIVE:$<TARGET_FILE:hermesvm_a>")
+  # /WHOLEARCHIVE:$<TARGET_FILE> is only an ordering dependency, so Ninja does
+  # not relink when the archive changes, and it drops hermesvm_a's transitive
+  # link dependencies. LINK_LIBRARY does both. CMake before 3.24 cannot express
+  # that, so those generators keep the file-level link.
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.24)
+    if(NOT HERMESVM_LEAN)
+      target_link_libraries(hermesvm PRIVATE "$<LINK_LIBRARY:WHOLE_ARCHIVE,hermesvm_a>")
+    endif()
+    target_link_libraries(hermesvmlean PRIVATE "$<LINK_LIBRARY:WHOLE_ARCHIVE,hermesvmlean_a>")
+  else()
+    if(NOT HERMESVM_LEAN)
+      add_dependencies(hermesvm hermesvm_a)
+      target_link_options(hermesvm PRIVATE "/WHOLEARCHIVE:$<TARGET_FILE:hermesvm_a>")
+    endif()
+    add_dependencies(hermesvmlean hermesvmlean_a)
+    target_link_options(hermesvmlean PRIVATE "/WHOLEARCHIVE:$<TARGET_FILE:hermesvmlean_a>")
   endif()
-  add_dependencies(hermesvmlean hermesvmlean_a)
-  target_link_options(hermesvmlean PRIVATE "/WHOLEARCHIVE:$<TARGET_FILE:hermesvmlean_a>")
 elseif(APPLE)
   if(NOT HERMESVM_LEAN)
     target_link_libraries(hermesvm PRIVATE -force_load hermesvm_a)

@@ -12,6 +12,13 @@
 
 #include <thread>
 
+#ifdef _WINDOWS
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+
 using namespace hermes;
 
 namespace {
@@ -195,6 +202,45 @@ TEST(StackBoundsTest, unboundRecursion_thread64KGuard) {
   });
 }
 
+#endif
+
+#ifdef _WINDOWS
+// HotSpot commits a guard zone at AllocationBase and leaves the rest of the
+// stack reserved. The usable range must start above that zone and still cover
+// the reserved pages, because the result is cached while the stack grows.
+TEST(StackBoundsTest, CommittedGuardAtAllocationBase) {
+  struct Measured {
+    bool setup = false;
+    uintptr_t base = 0;
+    uintptr_t low = 0;
+    size_t size = 0;
+  } measured;
+  std::thread thread([&measured] {
+    volatile char local = 0;
+    (void)local;
+    MEMORY_BASIC_INFORMATION info;
+    if (!VirtualQuery((void *)&local, &info, sizeof(info))) return;
+    constexpr size_t kGuard = 16 * 1024;
+    if (!VirtualAlloc(info.AllocationBase, kGuard, MEM_COMMIT, PAGE_READWRITE)) {
+      return;
+    }
+    DWORD previous = 0;
+    if (!VirtualProtect(
+            info.AllocationBase, kGuard, PAGE_READWRITE | PAGE_GUARD, &previous)) {
+      return;
+    }
+    auto [high, size] = oscompat::thread_stack_bounds(0);
+    measured.setup = high != nullptr && size > 0;
+    measured.base = reinterpret_cast<uintptr_t>(info.AllocationBase);
+    measured.low = reinterpret_cast<uintptr_t>(high) - size;
+    measured.size = size;
+  });
+  thread.join();
+  ASSERT_TRUE(measured.setup);
+  EXPECT_GE(measured.low, measured.base + 16 * 1024);
+  EXPECT_LT(measured.low, measured.base + 16 * 1024 + 64 * 1024);
+  EXPECT_GT(measured.size, static_cast<size_t>(128 * 1024));
+}
 #endif
 
 } // namespace

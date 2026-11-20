@@ -427,7 +427,9 @@ std::pair<const void *, size_t> thread_stack_bounds_impl() {
 
   // Obtain the stack bounds by querying somewhere in the committed region.
   MEMORY_BASIC_INFORMATION info;
-  VirtualQuery((void *)&x, &info, sizeof(info));
+  if (!VirtualQuery((void *)&x, &info, sizeof(info))) {
+    return {nullptr, 0};
+  }
 
   // The low bound of the stack is the base of the overall stack allocation.
   // This is given by AllocationBase, which corresponds to the base address of
@@ -438,16 +440,54 @@ std::pair<const void *, size_t> thread_stack_bounds_impl() {
 
   size_t sz = (const char *)stackHigh - (const char *)stackLow;
 
-  // HotSpot commits the whole thread stack, so AllocationBase is already
-  // committed. The logic below assumes a reserved region and would subtract
-  // the next mapping, reporting a stack of only a few dozen kilobytes.
+  const size_t pageSz = page_size_real();
+
+  // A normal Windows thread reserves its stack and commits pages downward, so
+  // AllocationBase is MEM_RESERVE and the loop below applies. HotSpot instead
+  // commits a guard zone (PAGE_GUARD / PAGE_NOACCESS, about 16KB on x64) at
+  // the base and leaves the rest reserved. That base is not MEM_RESERVE, and
+  // treating the reserved remainder as the guard would report only the pages
+  // committed so far. The result is cached for the life of the thread, so the
+  // reserved remainder has to stay inside the usable range: that is where the
+  // stack grows. Skip the guard zone, then apply the same guarantee and page
+  // margin as the reserved-base path.
   MEMORY_BASIC_INFORMATION baseInfo;
-  VirtualQuery(stackLow, &baseInfo, sizeof(baseInfo));
+  if (!VirtualQuery(stackLow, &baseInfo, sizeof(baseInfo))) {
+    return {nullptr, 0};
+  }
   if (baseInfo.State != MEM_RESERVE) {
+    const char *cursor = (const char *)stackLow;
+    const char *const high = (const char *)stackHigh;
+    while (cursor < high) {
+      MEMORY_BASIC_INFORMATION region;
+      if (!VirtualQuery(cursor, &region, sizeof(region)) ||
+          region.RegionSize == 0) {
+        return {nullptr, 0};
+      }
+      const bool guardOrNoAccess = (region.Protect & PAGE_GUARD) != 0 ||
+          (region.Protect & PAGE_NOACCESS) != 0;
+      // One reserved page under the guard is unused. A larger reserved region
+      // is the uncommitted stack.
+      const bool smallReserve =
+          region.State == MEM_RESERVE && region.RegionSize <= pageSz;
+      if (!guardOrNoAccess && !smallReserve) {
+        break;
+      }
+      cursor += region.RegionSize;
+    }
+    if (cursor >= high) {
+      return {nullptr, 0};
+    }
+    sz = static_cast<size_t>(high - cursor);
+    ULONG guarantee = 0;
+    SetThreadStackGuarantee(&guarantee);
+    if (guarantee >= sz || pageSz >= sz - guarantee) {
+      return {nullptr, 0};
+    }
+    sz -= guarantee;
+    sz -= pageSz;
     return {stackHigh, sz};
   }
-
-  const size_t pageSz = page_size_real();
 
   // If we fail to determine the actual size of the guard region, fall back to
   // 12KB or one page, whichever is larger.
